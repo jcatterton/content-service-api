@@ -1,0 +1,4 @@
+apiVersion: v1
+description: A Helm chart for Kubernetes dpeloyment of content-service-api
+name: content-service-api
+version: 1.1.0

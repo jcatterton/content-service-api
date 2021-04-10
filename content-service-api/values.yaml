@@ -1,0 +1,19 @@
+name: content-service-api
+replicas:
+  max: 5
+  min: 2
+image:
+  repository: 192.168.1.15:5000/content-service-api
+  tag: 1.1.0
+  pullPolicy: Always
+service:
+  type: NodePort
+  internalPort: 8005
+  externalPort: 80
+resources:
+  limits:
+    cpu: 250m
+    memory: 256Mi
+  requests:
+    cpu: 100m
+    memory: 128Mi

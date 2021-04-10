@@ -1,0 +1,68 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+    name: {{ .Values.name }}
+    labels:
+        chart: {{ .Values.name }}
+spec:
+    selector:
+        matchLabels:
+            app: {{ .Values.name }}
+    template:
+        metadata:
+            labels:
+                app: {{ .Values.name }}
+        spec:
+            containers:
+                - name: {{ .Values.name }}
+                  image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+                  imagePullPolicy: {{ .Values.image.pullPolicy }}
+                  ports:
+                      - containerPort: {{ .Values.service.internalPort }}
+                  livenessProbe:
+                      httpGet:
+                          path: /health
+                          port: {{ .Values.service.internalPort }}
+                      initialDelaySeconds: 10
+                  readinessProbe:
+                      httpGet:
+                          path: /health
+                          port: {{ .Values.service.internalPort }}
+                      initialDelaySeconds: 10
+                  env:
+                      - name: "MONGO_URI"
+                        valueFrom:
+                            secretKeyRef:
+                                name: content-service-api
+                                key: MONGO_URI
+                                optional: false
+                      - name: "LOGIN_SERVICE_URL"
+                        valueFrom:
+                            secretKeyRef:
+                                name: content-service-api
+                                key: LOGIN_SERVICE_URL
+                                optional: false
+                      - name: "DATABASE"
+                        valueFrom:
+                            secretKeyRef:
+                                name: content-service-api
+                                key: DATABASE
+                                optional: false
+                      - name: "FILE_COLLECTION"
+                        valueFrom:
+                            secretKeyRef:
+                                name: content-service-api
+                                key: FILE_COLLECTION
+                                optional: false
+                      - name: "FS_COLLECTION"
+                        valueFrom:
+                            secretKeyRef:
+                                name: content-service-api
+                                key: FS_COLLECTION
+                                optional: false
+                      - name: "CHUNK_COLLECTION"
+                        valueFrom:
+                            secretKeyRef:
+                                name: content-service-api
+                                key: CHUNK_COLLECTION
+                                optional: false
