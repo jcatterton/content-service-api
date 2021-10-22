@@ -5,9 +5,12 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
+	"io/ioutil"
 	"net/http"
 	"os"
+	"os/exec"
 	"os/signal"
 	"path/filepath"
 	"strconv"
@@ -18,6 +21,7 @@ import (
 	"content-service-api/pkg/dao"
 	"content-service-api/pkg/external"
 
+	"github.com/gabriel-vasile/mimetype"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	"github.com/sirupsen/logrus"
@@ -76,6 +80,7 @@ func route() (*mux.Router, error) {
 	r.HandleFunc("/file/{id}", deleteFile(&dbHandler, &extHandler)).Methods(http.MethodDelete)
 	r.HandleFunc("/file/{id}", updateFileInfo(&dbHandler, &extHandler)).Methods(http.MethodPut)
 	r.HandleFunc("/files", getFiles(&dbHandler, &extHandler)).Methods(http.MethodGet)
+	r.HandleFunc("/preview/{id}", generatePreview(&dbHandler, &extHandler)).Methods(http.MethodGet)
 
 	return r, nil
 }
@@ -107,12 +112,6 @@ func uploadFile(dbHandler dao.DBHandler, extHandler external.ExtHandler) http.Ha
 		if err := extHandler.ValidateToken(token); err != nil {
 			logrus.WithError(err).Error("Error validating token")
 			respondWithError(w, http.StatusUnauthorized, err.Error())
-			return
-		}
-
-		if err := r.ParseForm(); err != nil {
-			logrus.WithError(err).Error("Error parsing request form")
-			respondWithError(w, http.StatusBadRequest, err.Error())
 			return
 		}
 
@@ -186,6 +185,8 @@ func downloadFile(dbHandler dao.DBHandler, extHandler external.ExtHandler) http.
 			respondWithError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
+
+		w.Header().Set("Content-Type", mimetype.Detect(fileBytes).String())
 
 		if _, err := io.Copy(w, bytes.NewBuffer(fileBytes)); err != nil {
 			logrus.WithError(err).Error("Error writing file to response")
@@ -320,6 +321,96 @@ func getFiles(dbHandler dao.DBHandler, extHandler external.ExtHandler) http.Hand
 
 		logrus.Info("Files retrieved successfully")
 		respondWithSuccess(w, http.StatusOK, results)
+		return
+	}
+}
+
+func generatePreview(dbHandler dao.DBHandler, extHandler external.ExtHandler) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
+		defer closeRequestBody(r)
+
+		token, err := getAuthToken(r)
+		if err != nil {
+			logrus.WithError(err).Error("Error retrieving authorization token from request")
+			respondWithError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+
+		if err := extHandler.ValidateToken(token); err != nil {
+			logrus.WithError(err).Error("Error validating token")
+			respondWithError(w, http.StatusUnauthorized, err.Error())
+			return
+		}
+
+		id, err := primitive.ObjectIDFromHex(mux.Vars(r)["id"])
+		if err != nil {
+			logrus.WithError(err).Error("Error converting given ID to objectID")
+			respondWithError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+
+		fileBytes, err := dbHandler.GetFile(ctx, id)
+		if err != nil {
+			logrus.WithError(err).Error("Error downloading file")
+			respondWithError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+
+		path := "./tmp"
+		dst, err := os.Create(path)
+		if err != nil {
+			logrus.WithError(err).Error("Error creating temporary file")
+			respondWithError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+
+		defer func() {
+			if err := dst.Close(); err != nil {
+				logrus.WithError(err).Error("Error closing temporary file location")
+			}
+			if err := os.Remove(path); err != nil {
+				logrus.WithError(err).Error("Error deleting temporary file")
+			}
+		}()
+
+		if _, err := io.Copy(dst, bytes.NewReader(fileBytes)); err != nil {
+			logrus.WithError(err).Error("Error copying bytes to temporary file")
+			respondWithError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+
+		if _, err = exec.Command("soffice", "--invisible", "--convert-to", "pdf:writer_pdf_Export", path).Output(); err != nil {
+			logrus.WithError(err).Error("Error converting bytes to PDF")
+			if _, err = exec.Command("libreoffice", "--invisible", "--convert-to", "pdf:writer_pdf_Export", path).Output(); err != nil {
+				logrus.WithError(err).Error("Error converting bytes to PDF")
+				respondWithError(w, http.StatusInternalServerError, err.Error())
+				return
+			}
+			respondWithError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+
+		defer func() {
+			if err := os.Remove(fmt.Sprintf("%v.pdf", path)); err != nil {
+				logrus.WithError(err).Error("Error deleting temporary file")
+			}
+		}()
+
+		out, err := ioutil.ReadFile(fmt.Sprintf("%v.pdf", path))
+		if err != nil {
+			logrus.WithError(err).Error("Error reading output file")
+			respondWithError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+
+		if _, err := io.Copy(w, bytes.NewBuffer(out)); err != nil {
+			logrus.WithError(err).Error("Error writing file to response")
+			respondWithError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+
+		logrus.Info("File successfully retrieved")
 		return
 	}
 }

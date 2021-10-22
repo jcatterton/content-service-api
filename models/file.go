@@ -12,6 +12,7 @@ type FileRequest struct {
 	Extension string             `json:"extension" bson:"extension"`
 	Size      int64              `json:"size" bson:"size"`
 	FileID    primitive.ObjectID `json:"fileBytes" bson:"fileBytes"`
+	Hidden	  bool				 `json:"hidden" bson:"hidden"`
 }
 
 type FileUpdateRequest struct {
@@ -19,6 +20,7 @@ type FileUpdateRequest struct {
 	Timestamp time.Time `json:"timestamp" bson:"timestamp"`
 	Extension string    `json:"extension" bson:"extension"`
 	Size      int64     `json:"size" bson:"size"`
+	Hidden	  bool	    `json:"hidden" bson:"hidden"`
 }
 
 type FileResponse struct {
@@ -28,4 +30,5 @@ type FileResponse struct {
 	Extension string             `json:"extension" bson:"extension"`
 	Size      int64              `json:"size" bson:"size"`
 	FileID    primitive.ObjectID `json:"fileBytes" bson:"fileBytes"`
+	Hidden	  bool				 `json:"hidden" bson:"hidden"`
 }

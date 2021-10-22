@@ -1,0 +1,15 @@
+version: "3.4"
+services:
+  app:
+    build:
+      context: ../
+      dockerfile: docker/Dockerfile
+    ports:
+      - 8005:8005
+    environment:
+      MONGO_URI: mongodb://192.168.1.15:27017
+      DATABASE: db
+      FILE_COLLECTION: files
+      FS_COLLECTION: fs.files
+      CHUNK_COLLECTION: fs.chunks
+      LOGIN_SERVICE_URL: http://192.168.1.15:30208

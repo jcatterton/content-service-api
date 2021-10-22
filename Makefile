@@ -1,5 +1,7 @@
 run:
 	go run cmd/svr/main.go
+run-with-docker:
+	docker-compose -f ./docker/docker-compose.yaml up -d --build --force-recreate
 test:
 	go test ./...
 coverage:
